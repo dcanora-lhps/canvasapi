@@ -1538,6 +1538,25 @@ class Course(CanvasObject):
             kwargs=combine_kwargs(**kwargs),
         )
 
+    def get_gradebook_history_feed(self, **kwargs):
+        """
+        Returns the gradebook history feed
+
+        :calls: `GET /api/v1/courses/:course_id/gradebook_history/feed\
+        <https://canvas.instructure.com/doc/api/gradebook_history.html#method.gradebook_history_api.feed>`_
+
+        :rtype: :class:`canvasapi.paginated_list.PaginatedList` of
+            :class:`canvasapi.grading_history.SubmissionVersion`
+        """
+
+        return PaginatedList(
+            Day,
+            self._requester,
+            "GET",
+            "courses/{}/gradebook_history/feed".format(self.id),
+            _kwargs=combine_kwargs(**kwargs),
+        )
+
     def get_grading_period(self, grading_period, **kwargs):
         """
         Return a single grading period for the associated course and id.
