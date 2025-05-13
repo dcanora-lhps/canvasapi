@@ -84,7 +84,10 @@ class PaginatedList(Iterable[T]):
             **self._next_params,
         )
         data = response.json()
+
+        old_next = self._next_url
         self._next_url = None
+
         # Check the response headers first. This is the normal Canvas convention
         # for pagination, but there are endpoints which return a `meta` property
         # for pagination instead.
@@ -109,6 +112,9 @@ class PaginatedList(Iterable[T]):
         self._next_url = (
             re.search(regex, next_link["url"]).group(1) if next_link else None
         )
+
+        if not data and old_next == self._next_url:
+            self._next_url = None
 
         self._next_params = {}
 
