@@ -2,14 +2,53 @@
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-04-16
+
+### General
+
+- Added support for Python 3.14
+- Dropped support for Python 3.9
+
+### Bugfixes
+
+- Fixed unexpected behavior from the `obj_or_str` utility function that prevented `Feature`-related functions from accepting `str` arguments.
+
+### Backstage
+
+- Updated minimum `black` version to avoid CVE-2026-32274
+- Updated various GitHub Actions
+- Update readthedocs config to include build info
+
+## [3.5.0] - 2026-03-12
+
+### General
+
+- Updated `RateLimitExceeded` exception to trigger on HTTP 429 instead of old 403.
+- Add a default User-Agent header
+
+### Bugfixes
+
+- `QuizGroup` fixed to have `course_id` of the quiz's `course_id`, instead of the `quiz_id` (Thanks, [@cjnitta](https://github.com/cjnitta) and [@dgwn](https://github.com/dgwn))
+
+## [3.4.0] - 2025-11-10
+
 ### New Endpoint Coverage
 
 - LTI Resource Links (Thanks, [@jsmnhou](https://github.com/jsmnhou))
+- Smart Search API [BETA] (Thanks, [@alportoricensis](https://github.com/alportoricensis))
+- New Quizzes Accommodations
+
+### General
+
+- Added support for Python 3.12 and 3.13
+- Dropped support for Python 3.7 and 3.8
 
 ### Backstage
 
 - Updated deploy Action to use more modern processes.
 - Updated `PaginatedList` to be type-aware, showing which class is included in the response. (Thanks [@HandcartCactus](https://github.com/HandcartCactus))
+- Updated Sphinx
+- Reworked how `Requester` handles JSON-only POST requests (currently, only New Quizzes Accommodations and GraphQL)
 
 ## [3.3.0] - 2023-08-27
 
@@ -645,7 +684,10 @@ Huge thanks to [@liblit](https://github.com/liblit) for lots of issues, suggesti
 - Fixed some incorrectly defined parameters
 - Fixed an issue where tests would fail due to an improperly configured requires block
 
-[Unreleased]: https://github.com/ucfopen/canvasapi/compare/v3.3.0...develop
+[Unreleased]: https://github.com/ucfopen/canvasapi/compare/v3.6.0...develop
+[3.6.0]: https://github.com/ucfopen/canvasapi/compare/v3.5.0...v3.6.0
+[3.5.0]: https://github.com/ucfopen/canvasapi/compare/v3.4.0...v3.5.0
+[3.4.0]: https://github.com/ucfopen/canvasapi/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/ucfopen/canvasapi/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/ucfopen/canvasapi/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/ucfopen/canvasapi/compare/v3.0.0...v3.1.0
