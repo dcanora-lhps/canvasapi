@@ -33,12 +33,19 @@ class Canvas(object):
     The main class to be instantiated to provide access to Canvas's API.
     """
 
-    def __init__(self, base_url, access_token):
+    def __init__(self, base_url, access_token, max_retries=5, backoff_factor=1.0):
         """
         :param base_url: The base URL of the Canvas instance's API.
         :type base_url: str
         :param access_token: The API key to authenticate requests with.
         :type access_token: str
+        :param max_retries: Number of times to retry a request that receives a 429
+            Rate Limit response before raising RateLimitExceeded. Defaults to 5.
+            Set to 0 to disable retry.
+        :type max_retries: int
+        :param backoff_factor: Multiplier for the exponential backoff sleep formula
+            ``backoff_factor * (2 ** attempt)``. Defaults to 1.0.
+        :type backoff_factor: float
         """
         if "api/v1" in base_url:
             raise ValueError(
@@ -70,7 +77,9 @@ class Canvas(object):
         access_token = access_token.strip()
         base_url = get_institution_url(base_url)
 
-        self.__requester = Requester(base_url, access_token)
+        self.__requester = Requester(
+            base_url, access_token, max_retries=max_retries, backoff_factor=backoff_factor
+        )
 
     def clear_course_nicknames(self, **kwargs):
         """

@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+from unittest.mock import call, patch
 from urllib.parse import quote
 
 import requests
@@ -24,7 +25,7 @@ from tests.util import register_uris
 @requests_mock.Mocker()
 class TestRequester(unittest.TestCase):
     def setUp(self):
-        self.canvas = Canvas(settings.BASE_URL, settings.API_KEY)
+        self.canvas = Canvas(settings.BASE_URL, settings.API_KEY, max_retries=0)
         self.requester = self.canvas._Canvas__requester
 
     # request()
@@ -210,3 +211,79 @@ class TestRequester(unittest.TestCase):
 
         with self.assertRaises(CanvasException):
             self.requester.request("GET", "absurd")
+
+    def test_retry_succeeds_after_429(self, m):
+        m.register_uri(
+            "GET",
+            settings.BASE_URL_WITH_VERSION + "retry_endpoint",
+            response_list=[
+                {"status_code": 429, "headers": {}, "json": {}},
+                {"status_code": 200, "headers": {}, "json": {}},
+            ],
+        )
+        canvas = Canvas(settings.BASE_URL, settings.API_KEY, max_retries=3)
+        requester = canvas._Canvas__requester
+
+        with patch("time.sleep") as mock_sleep:
+            response = requester.request("GET", "retry_endpoint")
+
+        self.assertEqual(response.status_code, 200)
+        mock_sleep.assert_called_once_with(1.0)
+
+    def test_retry_respects_retry_after_header(self, m):
+        m.register_uri(
+            "GET",
+            settings.BASE_URL_WITH_VERSION + "retry_after_endpoint",
+            response_list=[
+                {"status_code": 429, "headers": {"Retry-After": "42"}, "json": {}},
+                {"status_code": 200, "headers": {}, "json": {}},
+            ],
+        )
+        canvas = Canvas(settings.BASE_URL, settings.API_KEY, max_retries=3)
+        requester = canvas._Canvas__requester
+
+        with patch("time.sleep") as mock_sleep:
+            response = requester.request("GET", "retry_after_endpoint")
+
+        self.assertEqual(response.status_code, 200)
+        mock_sleep.assert_called_once_with(42.0)
+
+    def test_retry_exhausted_raises_rate_limit_exceeded(self, m):
+        m.register_uri(
+            "GET",
+            settings.BASE_URL_WITH_VERSION + "always_429",
+            response_list=[
+                {"status_code": 429, "headers": {}, "json": {}},
+                {"status_code": 429, "headers": {}, "json": {}},
+                {"status_code": 429, "headers": {}, "json": {}},
+            ],
+        )
+        canvas = Canvas(settings.BASE_URL, settings.API_KEY, max_retries=2)
+        requester = canvas._Canvas__requester
+
+        with patch("time.sleep") as mock_sleep:
+            with self.assertRaises(RateLimitExceeded):
+                requester.request("GET", "always_429")
+
+        self.assertEqual(mock_sleep.call_count, 2)
+        mock_sleep.assert_has_calls([call(1.0), call(2.0)])
+
+    def test_retry_backoff_factor_scaling(self, m):
+        m.register_uri(
+            "GET",
+            settings.BASE_URL_WITH_VERSION + "backoff_endpoint",
+            response_list=[
+                {"status_code": 429, "headers": {}, "json": {}},
+                {"status_code": 200, "headers": {}, "json": {}},
+            ],
+        )
+        canvas = Canvas(
+            settings.BASE_URL, settings.API_KEY, max_retries=3, backoff_factor=0.5
+        )
+        requester = canvas._Canvas__requester
+
+        with patch("time.sleep") as mock_sleep:
+            response = requester.request("GET", "backoff_endpoint")
+
+        self.assertEqual(response.status_code, 200)
+        mock_sleep.assert_called_once_with(0.5)

@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from pprint import pformat
 
@@ -25,12 +26,19 @@ class Requester(object):
     Responsible for handling HTTP requests.
     """
 
-    def __init__(self, base_url, access_token):
+    def __init__(self, base_url, access_token, max_retries=5, backoff_factor=1.0):
         """
         :param base_url: The base URL of the Canvas instance's API.
         :type base_url: str
         :param access_token: The API key to authenticate requests with.
         :type access_token: str
+        :param max_retries: Number of times to retry a request that receives a 429
+            Rate Limit response before raising RateLimitExceeded. Defaults to 5.
+            Set to 0 to disable retry.
+        :type max_retries: int
+        :param backoff_factor: Multiplier for the exponential backoff sleep formula
+            ``backoff_factor * (2 ** attempt)``. Defaults to 1.0.
+        :type backoff_factor: float
         """
         # Preserve the original base url and add "/api/v1" to it
         self.original_url = base_url
@@ -40,6 +48,8 @@ class Requester(object):
         self.access_token = access_token
         self._session = requests.Session()
         self._cache = []
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
 
     def _delete_request(self, url, headers, data=None, **kwargs):
         """
@@ -230,27 +240,51 @@ class Requester(object):
         if json:
             logger.debug("JSON: {json}".format(json=pformat(json)))
 
-        response = req_method(full_url, headers, _kwargs, json=json)
-        logger.info(
-            "Response: {method} {url} {status}".format(
-                method=method, url=full_url, status=response.status_code
+        response = None
+        for attempt in range(self.max_retries + 1):
+            response = req_method(full_url, headers, _kwargs, json=json)
+            logger.info(
+                "Response: {method} {url} {status}".format(
+                    method=method, url=full_url, status=response.status_code
+                )
             )
-        )
-        logger.debug(
-            "Headers: {headers}".format(
-                headers=pformat(clean_headers(response.headers))
-            )
-        )
-
-        try:
             logger.debug(
-                "Data: {data}".format(data=pformat(response.content.decode("utf-8")))
+                "Headers: {headers}".format(
+                    headers=pformat(clean_headers(response.headers))
+                )
             )
-        except UnicodeDecodeError:
-            logger.debug("Data: {data}".format(data=pformat(response.content)))
-        except AttributeError:
-            # response.content is None
-            logger.debug("No data")
+
+            try:
+                logger.debug(
+                    "Data: {data}".format(
+                        data=pformat(response.content.decode("utf-8"))
+                    )
+                )
+            except UnicodeDecodeError:
+                logger.debug("Data: {data}".format(data=pformat(response.content)))
+            except AttributeError:
+                # response.content is None
+                logger.debug("No data")
+
+            if response.status_code != 429:
+                break
+
+            if attempt >= self.max_retries:
+                break  # exhausted — fall through to raise RateLimitExceeded
+
+            retry_after = response.headers.get("Retry-After")
+            try:
+                wait = float(retry_after)
+            except (TypeError, ValueError):
+                wait = self.backoff_factor * (2 ** attempt)
+
+            logger.warning(
+                "Rate limit hit (attempt {attempt}/{max}). "
+                "Retrying in {wait:.2f}s.".format(
+                    attempt=attempt + 1, max=self.max_retries, wait=wait
+                )
+            )
+            time.sleep(wait)
 
         # Add response to internal cache
         if len(self._cache) > 4:
